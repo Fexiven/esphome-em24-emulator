@@ -1,0 +1,130 @@
+# Example ESPHome config: ESP32-C3 reading a German smart meter via SML/IR
+# and presenting it to a Victron Cerbo GX as a Carlo Gavazzi EM24 grid meter.
+#
+# Adjust board, UART pins, OBIS codes, and filters to match your hardware and meter.
+
+esphome:
+  name: grid_meter
+  friendly_name: "Grid Meter"
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+# Reference this repo as a git external component:
+external_components:
+  - source:
+      type: git
+      url: https://github.com/Fexiven/esphome-em24-emulator
+      ref: main
+    components: [em24_meter]
+
+# Or use a local copy:
+# external_components:
+#   - source:
+#       type: local
+#       path: components
+#     components: [em24_meter]
+
+logger:
+  baud_rate: 0
+
+api:
+  encryption:
+    key: !secret api_key
+  # If you do NOT run Home Assistant, uncomment so the ESP doesn't reboot every 15 min:
+  # reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Optional: set a static IP so the Cerbo GX always finds the meter
+  # use_address: 192.168.178.33
+
+# --- UART for the IR reading head ---
+uart:
+  id: uart_bus
+  tx_pin: 1     # adjust for your board
+  rx_pin: 3     # adjust for your board
+  baud_rate: 9600
+
+sml:
+  uart_id: uart_bus
+
+# --- EM24 emulator: serves Modbus TCP on port 502 ---
+em24_meter:
+  power: sml_power            # /Ac/Power  (signed: + = import, − = export)
+  import_energy: sml_import   # /Ac/Energy/Forward
+  export_energy: sml_export   # /Ac/Energy/Reverse
+  phases: "1P"                # total-only data → present as single phase
+  # invert_power: true        # uncomment if power sign is backwards in Victron
+  # port: 502                 # default Modbus TCP port
+  # unit_id: 1                # default; must match what you configure on the GX
+
+# --- Convenience ---
+button:
+  - platform: restart
+    name: "Restart"
+    entity_category: config
+
+# --- SML sensors (adjust OBIS codes for your meter!) ---
+sensor:
+  - platform: sml
+    name: "Import"
+    id: sml_import
+    obis_code: "1-0:1.8.0"
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+    filters:
+      - multiply: 0.0001       # meter reports in 0.1 Wh → convert to kWh
+      - throttle: 30s
+
+  - platform: sml
+    name: "Export"
+    id: sml_export
+    obis_code: "1-0:2.8.0"
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+    filters:
+      - multiply: 0.0001
+      - throttle: 30s
+
+  - platform: sml
+    name: "Power"
+    id: sml_power
+    obis_code: "1-0:16.7.0"
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    device_class: power
+    state_class: measurement
+    filters:
+      - throttle_average: 1s   # tight update interval helps Victron ESS regulation
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: diagnostic
+
+text_sensor:
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      entity_category: diagnostic
+    mac_address:
+      name: "MAC Address"
+      entity_category: diagnostic
