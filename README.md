@@ -9,10 +9,10 @@ Victron's ESS (Energy Storage System) needs a grid meter to regulate battery cha
 ## How it works
 
 ```
-┌──────────────┐   SML/IR    ┌──────────┐  Modbus TCP   ┌──────────┐
-│  Smart Meter  │───────────▶│   ESP32   │◀─────────────▶│ Cerbo GX │
-│  (e.g. ISKRA) │            │ (ESPHome) │   port 502    │          │
-└──────────────┘             └──────────┘               └──────────┘
+┌──────────────┐   SML/IR    ┌───────────┐  Modbus TCP   ┌──────────┐
+│ Smart Meter  │────────────▶│   ESP32   │◀─────────────▶│ Cerbo GX │
+│ (e.g. ISKRA) │             │ (ESPHome) │   port 502    │          │
+└──────────────┘             └───────────┘               └──────────┘
 ```
 
 The ESP32 reads power/energy values via SML over UART, then exposes them as Modbus TCP holding registers that exactly match the EM24's register map. The Cerbo GX auto-detects it (or you add it manually) as a Carlo Gavazzi meter.
